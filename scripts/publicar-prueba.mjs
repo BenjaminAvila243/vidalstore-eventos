@@ -5,12 +5,14 @@ const conexion = await connect('amqp://vidalstore:Herinilo123.cl@localhost:5672'
 const canal = await conexion.createChannel();
 
 const payload = {
-  juegoId: 'juego-99',
-  titulo: 'Prueba Insercion',
-  editorSub: 'editor-prueba',
+  licenciaId: 'licencia-1',
+  juegoId: 'juego-1',
+  usuarioSub: 'jugador-prueba',
+  revocadaPor: 'admin-prueba',
+  motivo: 'prueba de persistencia completa',
 };
 
-canal.publish('vidalstore.eventos', 'juego.publicado', Buffer.from(JSON.stringify(payload)), {
+canal.publish('vidalstore.eventos', 'licencia.revocada', Buffer.from(JSON.stringify(payload)), {
   persistent: true,
   contentType: 'application/json',
   headers: {
