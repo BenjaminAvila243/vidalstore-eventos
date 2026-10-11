@@ -1,7 +1,10 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 import { ConsumeMessage } from 'amqplib';
+import { Repository } from 'typeorm';
 import { MensajeriaService } from '../mensajeria.service.js';
 import { DLQ } from '../topologia.js';
+import { MensajeMuerto } from '../../persistencia/mensaje-muerto.entity.js';
 
 type MuerteRabbit = {
   queue: string;
@@ -13,7 +16,10 @@ type MuerteRabbit = {
 export class MuertosConsumidor implements OnModuleInit {
   private readonly log = new Logger(MuertosConsumidor.name);
 
-  constructor(private readonly mensajeria: MensajeriaService) {}
+  constructor(
+    private readonly mensajeria: MensajeriaService,
+    @InjectRepository(MensajeMuerto) private readonly repo: Repository<MensajeMuerto>,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     const canal = this.mensajeria.canal;
@@ -23,7 +29,7 @@ export class MuertosConsumidor implements OnModuleInit {
         dlq,
         (mensaje: ConsumeMessage | null) => {
           if (!mensaje) return;
-          this.procesar(dlq, mensaje);
+          void this.procesar(dlq, mensaje);
         },
         { noAck: false },
       );
@@ -32,26 +38,34 @@ export class MuertosConsumidor implements OnModuleInit {
     this.log.log(`escuchando las DLQ: ${Object.values(DLQ).join(', ')}`);
   }
 
-  private procesar(dlq: string, mensaje: ConsumeMessage): void {
+  private async procesar(dlq: string, mensaje: ConsumeMessage): Promise<void> {
     const canal = this.mensajeria.canal;
 
-    // x-death lo agrega RabbitMQ solo, nunca se inventa. Es un arreglo porque un mensaje
-    // puede haber muerto mas de una vez, en mas de una cola, por mas de un motivo.
     const muertes = (mensaje.properties.headers?.['x-death'] ?? []) as MuerteRabbit[];
     const ultimaMuerte = muertes[0];
 
     const colaOrigen = ultimaMuerte?.queue ?? 'desconocida';
     const motivo = ultimaMuerte?.reason ?? 'desconocido';
     const intentos = ultimaMuerte?.count ?? 1;
-    const payload = mensaje.content.toString(); // como texto: puede no ser JSON valido
+    const payload = mensaje.content.toString();
 
-    this.log.warn(
-      `mensaje muerto en ${dlq} | cola de origen ${colaOrigen} | motivo ${motivo} | intentos ${intentos} | payload ${payload}`,
-    );
+    try {
+      await this.repo.insert({
+        colaOrigen,
+        routingKey: mensaje.fields.routingKey,
+        motivo,
+        intentos,
+        payload,
+      });
 
-    // Aca, mas adelante, se inserta en la tabla mensajes_muertos con TypeORM.
-    // Por ahora, el registro es el log.
-
-    canal.ack(mensaje);
+      this.log.warn(
+        `mensaje muerto en ${dlq} | cola de origen ${colaOrigen} | motivo ${motivo} | intentos ${intentos} | guardado en mensajes_muertos`,
+      );
+      canal.ack(mensaje);
+    } catch (error) {
+      // Si Postgres no responde, NO se hace ack: se devuelve a su propia DLQ con nack + requeue.
+      this.log.error(`no se pudo guardar el mensaje muerto: ${(error as Error).message}`);
+      canal.nack(mensaje, false, true);
+    }
   }
 }
