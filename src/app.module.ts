@@ -9,6 +9,7 @@ import { MensajeriaModule } from './mensajeria/mensajeria.module.js';
 import { EventoAuditoria } from './persistencia/evento-auditoria.entity.js';
 import { MensajeMuerto } from './persistencia/mensaje-muerto.entity.js';
 import { Notificacion } from './persistencia/notificacion.entity.js';
+import { SaludController } from './salud.controller.js';
 
 @Module({
   imports: [
@@ -33,7 +34,7 @@ import { Notificacion } from './persistencia/notificacion.entity.js';
     CorreosModule,
     MuertosModule,
   ],
-  controllers: [],
+  controllers: [SaludController],
   providers: [],
 })
 export class AppModule {}
