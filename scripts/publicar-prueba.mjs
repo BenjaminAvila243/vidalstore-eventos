@@ -1,7 +1,7 @@
 import { connect } from 'amqplib';
 import { randomUUID } from 'node:crypto';
 
-const conexion = await connect('amqp://vidalstore:Herinilo123.cl@localhost:5672');
+const conexion = await connect(process.env.RABBITMQ_URL);
 const canal = await conexion.createChannel();
 
 const payload = {

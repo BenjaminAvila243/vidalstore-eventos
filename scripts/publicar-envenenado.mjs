@@ -1,6 +1,6 @@
 import { connect } from 'amqplib';
 
-const conexion = await connect('amqp://vidalstore:Herinilo123.cl@localhost:5672');
+const conexion = await connect(process.env.RABBITMQ_URL);
 const canal = await conexion.createChannel();
 
 const modo = process.argv[2] ?? 'no-json';
