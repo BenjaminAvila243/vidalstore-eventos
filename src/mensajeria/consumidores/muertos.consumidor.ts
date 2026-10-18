@@ -9,6 +9,7 @@ import { MensajeMuerto } from '../../persistencia/mensaje-muerto.entity.js';
 type MuerteRabbit = {
   queue: string;
   reason: string;
+  'routing-keys'?: string[];
   count?: number;
 };
 
@@ -52,7 +53,7 @@ export class MuertosConsumidor implements OnModuleInit {
     try {
       await this.repo.insert({
         colaOrigen,
-        routingKey: mensaje.fields.routingKey,
+        routingKey: ultimaMuerte?.['routing-keys']?.[0] ?? mensaje.fields.routingKey,
         motivo,
         intentos,
         payload,
